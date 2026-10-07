@@ -120,9 +120,11 @@ A caller with a valid token for one tenant always gets 403 on another tenant's p
 
 ## Request flow
 
-A request passes through the same three shared steps for every tenant, then crosses one interface into that tenant's module.
+A request passes through the same four shared steps for every tenant, then crosses one interface into that tenant's module.
 
 &#91;embedded content: request flow · 3 shared steps, 1 contract, 1 module per tenant\]
+
+The diagram predates the Oct 7 revision: it shows three shared steps, before the payload filter was added ahead of security. The list below is current.
 
 1. `PayloadLimitFilter` caps the request body before anything parses it. Over the cap is 413, and this runs ahead of security.
 2. The security filter validates the JWT; an invalid token gets 401 before any tenant logic runs.
@@ -720,6 +722,11 @@ class TenantIsolationArchTest {
     static final ArchRule shared_code_does_not_name_tenants =
             noClasses().that().resideOutsideOfPackage("com.capitalone.calc.tenant..")
                     .should().dependOnClassesThat().resideInAPackage("com.capitalone.calc.tenant..");
+
+    @ArchTest
+    static final ArchRule contract_depends_on_the_jdk_only =
+            classes().that().resideInAPackage("com.capitalone.calc.spi..")
+                    .should().onlyDependOnClassesThat().resideInAnyPackage("com.capitalone.calc.spi..", "java..");
 }
 ```
 
