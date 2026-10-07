@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: calc-app
+  datasource:
+    # The service connects as calc_app: not the table owner, no BYPASSRLS.
+    url: ${CALC_DB_URL:jdbc:postgresql://localhost:5433/calc}
+    username: ${CALC_DB_USER:calc_app}
+    password: ${CALC_DB_PASSWORD:calc_app}
+    hikari:
+      # Must stay at or above the sum of every tenant's max-concurrent, or tenants queue on
+      # each other for connections no matter what their own limits say.
+      maximum-pool-size: 20
+      minimum-idle: 5
+      # Hikari takes plain milliseconds, not durations.
+      connection-timeout: 2000       # fail fast instead of stalling for Hikari's 30s default
+      validation-timeout: 1000
+      leak-detection-threshold: 10000
+  web:
+    resources:
+      add-mappings: false
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  # Bounds how long a slow client can hold a request thread before the body even arrives.
+  max-http-request-header-size: 16KB
+  tomcat:
+    connection-timeout: 5s
+    keep-alive-timeout: 15s
+    max-swallow-size: 2MB        # drain a rejected body so the 413 reaches the client cleanly
+
+calc:
+  security:
+    # Dev-only HS256 secret shared with scripts/mint-token.sh. Override with CALC_JWT_SECRET.
+    jwt-secret: ${CALC_JWT_SECRET:dev-only-secret-do-not-use-in-production-0123456789}
+
+# Runtime capacity for any tenant that does not override it under tenants.<id>.limits.*
+platform:
+  # Largest request body accepted, before authentication and before anything parses it.
+  max-request-bytes: 64KB
+  limits:
+    requests-per-second: 50
+    max-concurrent: 10
+    statement-timeout-ms: 2000
+
+# Per-tenant settings. A calculator receives only its own block, without limits.*
+tenants:
+  uscard:
+    living-allowance: "1200.00"
+    limits:
+      requests-per-second: 20
+      max-concurrent: 5
+  autofinance:
+    effective-tax-rate: "0.25"
+    per-dependent-allowance: "300.00"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+logging:
+  pattern:
+    level: "%5p [tenant=%X{tenant:-} req=%X{requestId:-}]"
